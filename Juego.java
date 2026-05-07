@@ -4,108 +4,100 @@ import java.util.ArrayList;
 
 public class Juego {
     private int numEstaciones = 10;
-    private int recursosIniciales = 4;
 
     private ColaCircular<Estacion> colaEstaciones;
-    //bolitas finales matriz
     private ArrayList<Recurso> salidaRecursos;
-    private Estacion[] estaciones;
     private int[] ultimosValoresDados;
     private int ronda;
     private boolean iniciado;
-    private boolean dadosLanzados;
 
     public Juego() {
         colaEstaciones = new ColaCircular<>(numEstaciones);
         salidaRecursos = new ArrayList<>();
-        estaciones = new Estacion[numEstaciones];
         ultimosValoresDados = new int[numEstaciones];
         ronda = 0;
         iniciado = false;
-        dadosLanzados = false;
     }
 
     public void iniciar() {
         colaEstaciones = new ColaCircular<>(numEstaciones);
         salidaRecursos = new ArrayList<>();
-        estaciones = new Estacion[numEstaciones];
         ultimosValoresDados = new int[numEstaciones];
         ronda = 0;
-        dadosLanzados = false;
 
+        // Crear e insertar las 10 estaciones en la cola
         for (int i = 0; i < numEstaciones; i++) {
-            estaciones[i] = new Estacion(i + 1);
-            colaEstaciones.insertar(estaciones[i]);
-        }
-
-        for (int i = 1; i < numEstaciones; i++) {
-            for (int j = 0; j < recursosIniciales; j++) {
-                estaciones[i].agregarRecurso(new Recurso());
+            Estacion est = new Estacion(i + 1);
+            // Poner recursos iniciales en todas menos la primera
+            if (i > 0) {
+                for (int j = 0; j <4 ; j++) {
+                    est.agregarRecurso(new Recurso());
+                }
             }
+            colaEstaciones.insertar(est);
         }
 
         iniciado = true;
     }
 
     public void lanzarDados() {
-        if (!iniciado) return;
         for (int i = 0; i < numEstaciones; i++) {
-            ultimosValoresDados[i] = estaciones[i].lanzarDado();
+            Estacion temp = colaEstaciones.eliminar();
+            ultimosValoresDados[i] = temp.lanzarDado();
+            colaEstaciones.insertar(temp);
         }
-        dadosLanzados = true;
     }
 
     public void moverRecursos() {
-        if (!iniciado || !dadosLanzados) return;
-        int[] cantidadAntes = new int[numEstaciones];
-        for (int i = 0; i < numEstaciones; i++) {
-            cantidadAntes[i] = estaciones[i].getCantidadEnCola();
-        }
+        Estacion estacionPrimera = colaEstaciones.eliminar();
 
-        ColaCircular<Recurso>[] transferencias = new ColaCircular[numEstaciones];
-
-        //estacion 1 + recursos
-        ColaCircular<Recurso> nuevos = new ColaCircular<>(ultimosValoresDados[0] + 1);
+        ColaCircular<Recurso> colaProcesados = new ColaCircular<>(ultimosValoresDados[0]);
         for (int j = 0; j < ultimosValoresDados[0]; j++) {
-            nuevos.insertar(new Recurso());
+            colaProcesados.insertar(new Recurso());
         }
-        transferencias[0] = nuevos;
 
-        for (int i = 1; i < numEstaciones; i++) {
-            int dado = ultimosValoresDados[i];
-            int enCola = cantidadAntes[i];
-            int cantidad;
+        //recorrer cola
+        for (int i = 0; i < numEstaciones - 1; i++) {
+            Estacion estacionSiguiente = colaEstaciones.eliminar();
 
-            if (dado < enCola) {
-                cantidad = dado;
+            // calcular cuánto puede procesar la siguiente estación
+            int cantAntes = estacionSiguiente.getCantidadEnCola();
+            int dadoSig = ultimosValoresDados[estacionSiguiente.getId() - 1];
+            //cant de personas que se procesaran
+            int cantSig;
+            //dadoSig=dado que salio en la ronda
+            //cantAntes= en cola
+            if (dadoSig < cantAntes) {
+                cantSig = dadoSig;
             } else {
-                cantidad = enCola;
+                cantSig = cantAntes;
             }
+            //sig estacion recibe lo que proceso la ant
+            estacionSiguiente.recibirRecursos(colaProcesados);
 
-            transferencias[i] = estaciones[i].procesarRecursos(cantidad);
+            //reinsert la estacin primera al final de la cola
+            colaEstaciones.insertar(estacionPrimera);
+            colaProcesados = estacionSiguiente.procesarRecursos(cantSig);
+            estacionPrimera = estacionSiguiente;
         }
 
-        for (int i = 1; i < numEstaciones; i++) {
-            estaciones[i].recibirRecursos(transferencias[i - 1]);
+        //para menejar lo de la ultima estacion fue el ciclo que se itero
+        //cuando termino en dar la ultima vuelta ya por default es E10 que
+        //es la ultima estacion, entocnes en el ciclo w ya lo de la ultima
+        //estacion va a la salida finak
+        while (!colaProcesados.isEmpty()) {
+            salidaRecursos.add(colaProcesados.eliminar());
         }
-        //los recursos que salen de la last estacion van a la matriz de bolitas
-        while (!transferencias[numEstaciones - 1].isEmpty()) {
-            Recurso r = transferencias[numEstaciones - 1].eliminar();
-            if (r != null) {
-                salidaRecursos.add(r);
-            }
-        }
-
+        colaEstaciones.insertar(estacionPrimera);
         ronda++;
-        dadosLanzados = false;
     }
-//getters
+
     public int[] getUltimosValoresDados() {
         return ultimosValoresDados;
     }
 
-    public Estacion[] getEstaciones() {
-        return estaciones;
+    public ColaCircular<Estacion> getEstaciones() {
+        return colaEstaciones;
     }
 
     public ArrayList<Recurso> getSalidaRecursos() {
@@ -120,10 +112,13 @@ public class Juego {
         return iniciado;
     }
 
+
     public int getTotalEnSistema() {
         int total = 0;
-        for (Estacion e : estaciones) {
-            total += e.getCantidadEnCola();
+        for (int i = 0; i < numEstaciones; i++) {
+            Estacion temp = colaEstaciones.eliminar();
+            total += temp.getCantidadEnCola();
+            colaEstaciones.insertar(temp);
         }
         return total;
     }
